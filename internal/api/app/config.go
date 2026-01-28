@@ -14,6 +14,9 @@ type Config struct {
 		MaxIdleConns int
 		MaxIdleTime  string
 	}
+	Redis struct {
+		Addr string
+	}
 	Kafka struct {
 		Brokers []string
 		Topic   string
@@ -37,6 +40,8 @@ func LoadConfig() Config {
 	flag.StringVar(&kafkaBrokers, "kafka-brokers", getEnv("RELAY_KAFKA_BROKERS", "localhost:9092"), "Kafka brokers (comma separated)")
 	flag.StringVar(&config.Kafka.Topic, "kafka-topic", getEnv("RELAY_KAFKA_TOPIC", "relay-jobs"), "Kafka topic")
 	flag.StringVar(&config.Kafka.GroupID, "kafka-group-id", getEnv("RELAY_KAFKA_GROUP_ID", "relay-worker-group"), "Kafka consumer group ID")
+
+	flag.StringVar(&config.Redis.Addr, "redis-addr", getEnv("RELAY_REDIS_ADDR", "localhost:6379"), "Redis address")
 
 	flag.Parse()
 

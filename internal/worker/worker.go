@@ -47,6 +47,18 @@ func (w *Worker) Start(ctx context.Context) {
 }
 
 func (w *Worker) processJob(ctx context.Context, jobID int32) {
+	lockKey := fmt.Sprintf("job:lock:%d", jobID)
+	val, err := w.app.Redis.SetNX(ctx, lockKey, "locked", 10*time.Minute).Result()
+	if err != nil {
+		w.app.Logger.Printf("error acquiring lock for job [%d]: %v", jobID, err)
+		return
+	}
+
+	if !val {
+		w.app.Logger.Printf("job [%d] is already being processed by another worker, skipping", jobID)
+		return
+	}
+
 	job, err := w.app.Repository.GetJob(ctx, jobID)
 	if err != nil {
 		w.app.Logger.Printf("error fetching job [%d]: %v", jobID, err)

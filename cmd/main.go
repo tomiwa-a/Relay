@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/segmentio/kafka-go"
 	"github.com/tomiwa-a/Relay/internal/api/app"
 	"github.com/tomiwa-a/Relay/internal/api/routes"
@@ -28,6 +29,11 @@ func main() {
 	}
 	defer db.Close()
 
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: config.Redis.Addr,
+	})
+	defer redisClient.Close()
+
 	kafkaWriter := &kafka.Writer{
 		Addr:     kafka.TCP(config.Kafka.Brokers...),
 		Topic:    config.Kafka.Topic,
@@ -36,7 +42,7 @@ func main() {
 
 	defer kafkaWriter.Close()
 
-	application := app.NewApplication(config, logger, db, kafkaWriter)
+	application := app.NewApplication(config, logger, db, kafkaWriter, redisClient)
 
 	kafkaReader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: config.Kafka.Brokers,

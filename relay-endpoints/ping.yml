@@ -1,0 +1,14 @@
+info:
+  name: ping
+  type: http
+
+http:
+  method: GET
+  url: "{{BASE_URL}}/ping"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

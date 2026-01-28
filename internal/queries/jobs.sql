@@ -18,6 +18,10 @@ SELECT * FROM jobs
 WHERE status = 'pending'
 ORDER BY created_at ASC;
 
+-- name: GetJob :one
+SELECT * FROM jobs
+WHERE id = $1;
+
 -- name: UpdateJobStatus :one
 UPDATE jobs
 SET 

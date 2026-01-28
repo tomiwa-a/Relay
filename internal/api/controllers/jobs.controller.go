@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -21,6 +22,29 @@ func GetAllJobs(application *app.Application) gin.HandlerFunc {
 			"message": "jobs fetched successfully",
 			"data":    jobs,
 		})
+	}
+}
+
+func GetSingleJob(application *app.Application) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		{
+			jobID := c.Param("id")
+			jobIDInt, err := strconv.Atoi(jobID)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job ID"})
+				return
+			}
+			job, err := application.Repository.GetJob(c.Request.Context(), int32(jobIDInt))
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch job"})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"message": "job fetched successfully",
+				"data":    job,
+			})
+		}
 	}
 }
 

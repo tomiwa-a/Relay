@@ -92,6 +92,29 @@ func (q *Queries) CreateJobLog(ctx context.Context, arg CreateJobLogParams) (Job
 	return i, err
 }
 
+const getJob = `-- name: GetJob :one
+SELECT id, parent_job_id, title, description, payload, max_retries, retries, status, created_at, updated_at FROM jobs
+WHERE id = $1
+`
+
+func (q *Queries) GetJob(ctx context.Context, id int32) (Job, error) {
+	row := q.db.QueryRow(ctx, getJob, id)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.ParentJobID,
+		&i.Title,
+		&i.Description,
+		&i.Payload,
+		&i.MaxRetries,
+		&i.Retries,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getJobLogs = `-- name: GetJobLogs :many
 SELECT id, job_id, stdout, stderr, exit_code, created_at FROM job_logs
 WHERE job_id = $1

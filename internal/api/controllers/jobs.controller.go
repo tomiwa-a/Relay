@@ -72,12 +72,18 @@ func AddJob(application *app.Application) gin.HandlerFunc {
 			maxRetries = pgtype.Int4{Int32: req.MaxRetries, Valid: true}
 		}
 
+		timeoutSeconds := pgtype.Int4{Int32: 30, Valid: true} // Default 30 seconds
+		if req.TimeoutSeconds > 0 {
+			timeoutSeconds = pgtype.Int4{Int32: req.TimeoutSeconds, Valid: true}
+		}
+
 		job, err := application.Repository.CreateJob(c.Request.Context(), repository.CreateJobParams{
-			ParentJobID: parentID,
-			Title:       req.Title,
-			Description: description,
-			Payload:     req.Payload,
-			MaxRetries:  maxRetries,
+			ParentJobID:    parentID,
+			Title:          req.Title,
+			Description:    description,
+			Payload:        req.Payload,
+			MaxRetries:     maxRetries,
+			TimeoutSeconds: timeoutSeconds,
 		})
 
 		if err != nil {

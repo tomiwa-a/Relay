@@ -4,9 +4,10 @@ INSERT INTO jobs (
     title,
     description,
     payload,
-    max_retries
+    max_retries,
+    timeout_seconds
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3, $4, $5, $6
 ) RETURNING *;
 
 -- name: ListJobs :many

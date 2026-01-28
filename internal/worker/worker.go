@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -108,14 +109,46 @@ func (w *Worker) processJob(ctx context.Context, jobID int32) {
 		return
 	}
 
-	fmt.Printf("PAYLOAD for Job [%d]: %s\n", job.ID, string(job.Payload))
+	// Job Execution with Timeout
+	execTimeout := 30 * time.Second
+	if job.TimeoutSeconds.Valid && job.TimeoutSeconds.Int32 > 0 {
+		execTimeout = time.Duration(job.TimeoutSeconds.Int32) * time.Second
+	}
 
-	// Simulate failure if "fail": true is in payload
-	if string(job.Payload) == `{"fail": true}` {
-		err = errors.New("simulated job failure")
-	} else {
-		time.Sleep(2 * time.Second)
-		err = nil
+	execCtx, cancelExec := context.WithTimeout(ctx, execTimeout)
+	defer cancelExec()
+
+	// Channel to capture execution result
+	done := make(chan error, 1)
+
+	go func() {
+		var payload map[string]interface{}
+		_ = json.Unmarshal(job.Payload, &payload)
+
+		// Simulate failure if "fail": true is in payload
+		if fail, ok := payload["fail"].(bool); ok && fail {
+			done <- errors.New("simulated job failure")
+			return
+		}
+
+		// Simulate long running job if "sleep": N is in payload
+		sleepTime := 2 * time.Second
+		if s, ok := payload["sleep"].(float64); ok {
+			sleepTime = time.Duration(s) * time.Second
+		}
+
+		time.Sleep(sleepTime)
+		done <- nil
+	}()
+
+	select {
+	case <-execCtx.Done():
+		err = execCtx.Err()
+		if err == context.DeadlineExceeded {
+			err = fmt.Errorf("job execution timed out after %v", execTimeout)
+		}
+	case execErr := <-done:
+		err = execErr
 	}
 
 	if err != nil {

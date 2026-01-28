@@ -17,18 +17,20 @@ INSERT INTO jobs (
     title,
     description,
     payload,
-    max_retries
+    max_retries,
+    timeout_seconds
 ) VALUES (
-    $1, $2, $3, $4, $5
-) RETURNING id, parent_job_id, title, description, payload, max_retries, retries, status, created_at, updated_at
+    $1, $2, $3, $4, $5, $6
+) RETURNING id, parent_job_id, title, description, payload, max_retries, retries, status, created_at, updated_at, timeout_seconds
 `
 
 type CreateJobParams struct {
-	ParentJobID pgtype.Int4
-	Title       string
-	Description pgtype.Text
-	Payload     []byte
-	MaxRetries  pgtype.Int4
+	ParentJobID    pgtype.Int4
+	Title          string
+	Description    pgtype.Text
+	Payload        []byte
+	MaxRetries     pgtype.Int4
+	TimeoutSeconds pgtype.Int4
 }
 
 func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (Job, error) {
@@ -38,6 +40,7 @@ func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (Job, erro
 		arg.Description,
 		arg.Payload,
 		arg.MaxRetries,
+		arg.TimeoutSeconds,
 	)
 	var i Job
 	err := row.Scan(
@@ -51,6 +54,7 @@ func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (Job, erro
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TimeoutSeconds,
 	)
 	return i, err
 }
@@ -93,7 +97,7 @@ func (q *Queries) CreateJobLog(ctx context.Context, arg CreateJobLogParams) (Job
 }
 
 const getJob = `-- name: GetJob :one
-SELECT id, parent_job_id, title, description, payload, max_retries, retries, status, created_at, updated_at FROM jobs
+SELECT id, parent_job_id, title, description, payload, max_retries, retries, status, created_at, updated_at, timeout_seconds FROM jobs
 WHERE id = $1
 `
 
@@ -111,6 +115,7 @@ func (q *Queries) GetJob(ctx context.Context, id int32) (Job, error) {
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TimeoutSeconds,
 	)
 	return i, err
 }
@@ -149,7 +154,7 @@ func (q *Queries) GetJobLogs(ctx context.Context, jobID int32) ([]JobLog, error)
 }
 
 const getPendingJobs = `-- name: GetPendingJobs :many
-SELECT id, parent_job_id, title, description, payload, max_retries, retries, status, created_at, updated_at FROM jobs
+SELECT id, parent_job_id, title, description, payload, max_retries, retries, status, created_at, updated_at, timeout_seconds FROM jobs
 WHERE status = 'pending'
 ORDER BY created_at ASC
 `
@@ -174,6 +179,7 @@ func (q *Queries) GetPendingJobs(ctx context.Context) ([]Job, error) {
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TimeoutSeconds,
 		); err != nil {
 			return nil, err
 		}
@@ -186,7 +192,7 @@ func (q *Queries) GetPendingJobs(ctx context.Context) ([]Job, error) {
 }
 
 const listJobs = `-- name: ListJobs :many
-SELECT id, parent_job_id, title, description, payload, max_retries, retries, status, created_at, updated_at FROM jobs
+SELECT id, parent_job_id, title, description, payload, max_retries, retries, status, created_at, updated_at, timeout_seconds FROM jobs
 ORDER BY created_at DESC
 `
 
@@ -210,6 +216,7 @@ func (q *Queries) ListJobs(ctx context.Context) ([]Job, error) {
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TimeoutSeconds,
 		); err != nil {
 			return nil, err
 		}
@@ -228,7 +235,7 @@ SET
     retries = $3,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
-RETURNING id, parent_job_id, title, description, payload, max_retries, retries, status, created_at, updated_at
+RETURNING id, parent_job_id, title, description, payload, max_retries, retries, status, created_at, updated_at, timeout_seconds
 `
 
 type UpdateJobStatusParams struct {
@@ -251,6 +258,7 @@ func (q *Queries) UpdateJobStatus(ctx context.Context, arg UpdateJobStatusParams
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TimeoutSeconds,
 	)
 	return i, err
 }

@@ -57,16 +57,17 @@ func (ns NullJobStatus) Value() (driver.Value, error) {
 }
 
 type Job struct {
-	ID          int32
-	ParentJobID pgtype.Int4
-	Title       string
-	Description pgtype.Text
-	Payload     []byte
-	MaxRetries  pgtype.Int4
-	Retries     pgtype.Int4
-	Status      NullJobStatus
-	CreatedAt   pgtype.Timestamp
-	UpdatedAt   pgtype.Timestamp
+	ID             int32
+	ParentJobID    pgtype.Int4
+	Title          string
+	Description    pgtype.Text
+	Payload        []byte
+	MaxRetries     pgtype.Int4
+	Retries        pgtype.Int4
+	Status         NullJobStatus
+	CreatedAt      pgtype.Timestamp
+	UpdatedAt      pgtype.Timestamp
+	TimeoutSeconds pgtype.Int4
 }
 
 type JobLog struct {

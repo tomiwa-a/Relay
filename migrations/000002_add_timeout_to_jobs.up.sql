@@ -1,0 +1,1 @@
+ALTER TABLE jobs ADD COLUMN timeout_seconds INT DEFAULT 0;

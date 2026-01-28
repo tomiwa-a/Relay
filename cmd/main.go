@@ -13,19 +13,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tomiwa-a/Relay/internal/api/app"
 	"github.com/tomiwa-a/Relay/internal/api/routes"
+	"github.com/tomiwa-a/Relay/internal/worker"
 )
 
 func main() {
-
-	a := 1
-	str := fmt.Sprintf("the value of a is %d", a)
-	fmt.Println(str)
-
-	arr := [4]int{1, 2, 3}
-
-	fmt.Println(arr)
-
-	return
 
 	config := app.LoadConfig()
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
@@ -36,11 +27,18 @@ func main() {
 	}
 	defer db.Close()
 
-	app := app.NewApplication(config, logger, db)
+	application := app.NewApplication(config, logger, db)
+
+	// Start worker
+	backgroundWorker := worker.NewWorker(application)
+
+	workerCtx, cancelWorker := context.WithCancel(context.Background())
+	defer cancelWorker()
+	go backgroundWorker.Start(workerCtx)
 
 	r := gin.Default()
 
-	routes.HandleRequests(r, app)
+	routes.HandleRequests(r, application)
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{

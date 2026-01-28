@@ -7,14 +7,132 @@ package repository
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const selectAllJobs = `-- name: SelectAllJobs :many
-SELECT id, title, description, created_at, updated_at FROM jobs
+const createJob = `-- name: CreateJob :one
+INSERT INTO jobs (
+    parent_job_id,
+    title,
+    description,
+    payload,
+    max_retries
+) VALUES (
+    $1, $2, $3, $4, $5
+) RETURNING id, parent_job_id, title, description, payload, max_retries, retries, status, created_at, updated_at
 `
 
-func (q *Queries) SelectAllJobs(ctx context.Context) ([]Job, error) {
-	rows, err := q.db.QueryContext(ctx, selectAllJobs)
+type CreateJobParams struct {
+	ParentJobID pgtype.Int4
+	Title       string
+	Description pgtype.Text
+	Payload     []byte
+	MaxRetries  pgtype.Int4
+}
+
+func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (Job, error) {
+	row := q.db.QueryRow(ctx, createJob,
+		arg.ParentJobID,
+		arg.Title,
+		arg.Description,
+		arg.Payload,
+		arg.MaxRetries,
+	)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.ParentJobID,
+		&i.Title,
+		&i.Description,
+		&i.Payload,
+		&i.MaxRetries,
+		&i.Retries,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createJobLog = `-- name: CreateJobLog :one
+INSERT INTO job_logs (
+    job_id,
+    stdout,
+    stderr,
+    exit_code
+) VALUES (
+    $1, $2, $3, $4
+) RETURNING id, job_id, stdout, stderr, exit_code, created_at
+`
+
+type CreateJobLogParams struct {
+	JobID    int32
+	Stdout   pgtype.Text
+	Stderr   pgtype.Text
+	ExitCode pgtype.Int4
+}
+
+func (q *Queries) CreateJobLog(ctx context.Context, arg CreateJobLogParams) (JobLog, error) {
+	row := q.db.QueryRow(ctx, createJobLog,
+		arg.JobID,
+		arg.Stdout,
+		arg.Stderr,
+		arg.ExitCode,
+	)
+	var i JobLog
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.Stdout,
+		&i.Stderr,
+		&i.ExitCode,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getJobLogs = `-- name: GetJobLogs :many
+SELECT id, job_id, stdout, stderr, exit_code, created_at FROM job_logs
+WHERE job_id = $1
+ORDER BY created_at ASC
+`
+
+func (q *Queries) GetJobLogs(ctx context.Context, jobID int32) ([]JobLog, error) {
+	rows, err := q.db.Query(ctx, getJobLogs, jobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []JobLog
+	for rows.Next() {
+		var i JobLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.JobID,
+			&i.Stdout,
+			&i.Stderr,
+			&i.ExitCode,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPendingJobs = `-- name: GetPendingJobs :many
+SELECT id, parent_job_id, title, description, payload, max_retries, retries, status, created_at, updated_at FROM jobs
+WHERE status = 'pending'
+ORDER BY created_at ASC
+`
+
+func (q *Queries) GetPendingJobs(ctx context.Context) ([]Job, error) {
+	rows, err := q.db.Query(ctx, getPendingJobs)
 	if err != nil {
 		return nil, err
 	}
@@ -24,8 +142,13 @@ func (q *Queries) SelectAllJobs(ctx context.Context) ([]Job, error) {
 		var i Job
 		if err := rows.Scan(
 			&i.ID,
+			&i.ParentJobID,
 			&i.Title,
 			&i.Description,
+			&i.Payload,
+			&i.MaxRetries,
+			&i.Retries,
+			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -33,11 +156,78 @@ func (q *Queries) SelectAllJobs(ctx context.Context) ([]Job, error) {
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
+	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	return items, nil
+}
+
+const listJobs = `-- name: ListJobs :many
+SELECT id, parent_job_id, title, description, payload, max_retries, retries, status, created_at, updated_at FROM jobs
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListJobs(ctx context.Context) ([]Job, error) {
+	rows, err := q.db.Query(ctx, listJobs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Job
+	for rows.Next() {
+		var i Job
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentJobID,
+			&i.Title,
+			&i.Description,
+			&i.Payload,
+			&i.MaxRetries,
+			&i.Retries,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateJobStatus = `-- name: UpdateJobStatus :one
+UPDATE jobs
+SET 
+    status = $2,
+    retries = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING id, parent_job_id, title, description, payload, max_retries, retries, status, created_at, updated_at
+`
+
+type UpdateJobStatusParams struct {
+	ID      int32
+	Status  NullJobStatus
+	Retries pgtype.Int4
+}
+
+func (q *Queries) UpdateJobStatus(ctx context.Context, arg UpdateJobStatusParams) (Job, error) {
+	row := q.db.QueryRow(ctx, updateJobStatus, arg.ID, arg.Status, arg.Retries)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.ParentJobID,
+		&i.Title,
+		&i.Description,
+		&i.Payload,
+		&i.MaxRetries,
+		&i.Retries,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

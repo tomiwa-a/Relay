@@ -7,3 +7,4 @@ sql:
       go:
         package: "repository"
         out: "./internal/repository"
+        sql_package: "pgx/v5"

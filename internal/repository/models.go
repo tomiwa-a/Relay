@@ -5,13 +5,75 @@
 package repository
 
 import (
-	"database/sql"
+	"database/sql/driver"
+	"fmt"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type JobStatus string
+
+const (
+	JobStatusPending    JobStatus = "pending"
+	JobStatusInProgress JobStatus = "in_progress"
+	JobStatusCompleted  JobStatus = "completed"
+	JobStatusFailed     JobStatus = "failed"
+	JobStatusDead       JobStatus = "dead"
+)
+
+func (e *JobStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = JobStatus(s)
+	case string:
+		*e = JobStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for JobStatus: %T", src)
+	}
+	return nil
+}
+
+type NullJobStatus struct {
+	JobStatus JobStatus
+	Valid     bool // Valid is true if JobStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullJobStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.JobStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.JobStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullJobStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.JobStatus), nil
+}
 
 type Job struct {
 	ID          int32
+	ParentJobID pgtype.Int4
 	Title       string
-	Description sql.NullString
-	CreatedAt   sql.NullTime
-	UpdatedAt   sql.NullTime
+	Description pgtype.Text
+	Payload     []byte
+	MaxRetries  pgtype.Int4
+	Retries     pgtype.Int4
+	Status      NullJobStatus
+	CreatedAt   pgtype.Timestamp
+	UpdatedAt   pgtype.Timestamp
+}
+
+type JobLog struct {
+	ID        int32
+	JobID     int32
+	Stdout    pgtype.Text
+	Stderr    pgtype.Text
+	ExitCode  pgtype.Int4
+	CreatedAt pgtype.Timestamp
 }

@@ -11,4 +11,5 @@ func RegisterJobRoutes(r *gin.Engine, app *app.Application) {
 	jobs := r.Group("jobs")
 
 	jobs.GET("", controllers.GetAllJobs(app))
+	jobs.POST("", controllers.AddJob(app))
 }

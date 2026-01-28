@@ -43,6 +43,16 @@ db/migrations/reset: confirm
 	@echo 'Rolling back all migrations...'
 	migrate -path ./migrations -database ${RELAY_DB_DSN} down
 
+## docker/up: start all docker containers in background
+.PHONY: docker/up
+docker/up:
+	docker-compose up -d
+
+## docker/down: stop and remove all docker containers
+.PHONY: docker/down
+docker/down:
+	docker-compose down
+
 ## sqlc: generate type-safe code from SQL
 .PHONY: sqlc
 sqlc:

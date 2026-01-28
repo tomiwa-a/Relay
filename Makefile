@@ -53,6 +53,12 @@ docker/up:
 docker/down:
 	docker-compose down
 
+## docker/psql: connect to the database container using psql
+.PHONY: docker/psql
+docker/psql:
+	docker exec -it relay-postgres psql ${RELAY_DB_DSN}
+
+
 ## sqlc: generate type-safe code from SQL
 .PHONY: sqlc
 sqlc:

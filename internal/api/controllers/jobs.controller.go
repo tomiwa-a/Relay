@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -126,6 +127,50 @@ func GetJobLogs(application *app.Application) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "job logs fetched successfully",
 			"data":    logs,
+		})
+	}
+}
+
+func ReplayJob(application *app.Application) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		jobID := c.Param("id")
+		jobIDInt, err := strconv.Atoi(jobID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job ID"})
+			return
+		}
+
+		job, err := application.Repository.GetJob(c.Request.Context(), int32(jobIDInt))
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "job not found"})
+			return
+		}
+
+		if job.Status.JobStatus != repository.JobStatusDead && job.Status.JobStatus != repository.JobStatusFailed {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("cannot replay job with status: %s", job.Status.JobStatus)})
+			return
+		}
+
+		replayedJob, err := application.Repository.ReplayJob(c.Request.Context(), int32(jobIDInt))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to replay job"})
+			return
+		}
+
+		// Push to Kafka
+		msg := kafka.Message{
+			Key:   []byte(strconv.Itoa(int(replayedJob.ID))),
+			Value: []byte(strconv.Itoa(int(replayedJob.ID))),
+		}
+		if err := application.KafkaWriter.WriteMessages(c.Request.Context(), msg); err != nil {
+			application.Logger.Printf("failed to push replayed job [%d] to kafka: %v", replayedJob.ID, err)
+			// Note: We might want to rollback status here, but for now we leave it as pending (stale).
+			// This is where the Sweeper would help!
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "job replayed successfully",
+			"data":    replayedJob,
 		})
 	}
 }

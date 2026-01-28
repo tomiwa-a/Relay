@@ -14,4 +14,5 @@ func RegisterJobRoutes(r *gin.Engine, app *app.Application) {
 	jobs.GET("/:id", controllers.GetSingleJob(app))
 	jobs.POST("", controllers.AddJob(app))
 	jobs.GET("/:id/logs", controllers.GetJobLogs(app))
+	jobs.POST("/:id/replay", controllers.ReplayJob(app))
 }

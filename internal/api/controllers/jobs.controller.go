@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/segmentio/kafka-go"
 	"github.com/tomiwa-a/Relay/internal/api/app"
 	"github.com/tomiwa-a/Relay/internal/repository"
 )
@@ -82,6 +83,16 @@ func AddJob(application *app.Application) gin.HandlerFunc {
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create job"})
 			return
+		}
+
+		msg := kafka.Message{
+			Key:   []byte(strconv.Itoa(int(job.ID))),
+			Value: []byte(strconv.Itoa(int(job.ID))),
+		}
+
+		err = application.KafkaWriter.WriteMessages(c.Request.Context(), msg)
+		if err != nil {
+			application.Logger.Printf("failed to push job [%d] to kafka: %v", job.ID, err)
 		}
 
 		c.JSON(http.StatusCreated, gin.H{

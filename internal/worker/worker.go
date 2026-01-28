@@ -44,7 +44,6 @@ func (w *Worker) processPendingJobs(ctx context.Context) {
 	for _, job := range jobs {
 		w.app.Logger.Printf("processing job [%d]: %s", job.ID, job.Title)
 
-		// Transition to in_progress
 		_, err = w.app.Repository.UpdateJobStatus(ctx, repository.UpdateJobStatusParams{
 			ID:     job.ID,
 			Status: repository.NullJobStatus{JobStatus: repository.JobStatusInProgress, Valid: true},
@@ -54,11 +53,9 @@ func (w *Worker) processPendingJobs(ctx context.Context) {
 			continue
 		}
 
-		// Simulate work
 		fmt.Printf("PAYLOAD for Job [%d]: %s\n", job.ID, string(job.Payload))
 		time.Sleep(2 * time.Second)
 
-		// Transition to completed
 		_, err = w.app.Repository.UpdateJobStatus(ctx, repository.UpdateJobStatusParams{
 			ID:     job.ID,
 			Status: repository.NullJobStatus{JobStatus: repository.JobStatusCompleted, Valid: true},

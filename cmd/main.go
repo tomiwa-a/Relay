@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/segmentio/kafka-go"
 	"github.com/tomiwa-a/Relay/internal/api/app"
 	"github.com/tomiwa-a/Relay/internal/api/routes"
 	"github.com/tomiwa-a/Relay/internal/worker"
@@ -27,9 +28,16 @@ func main() {
 	}
 	defer db.Close()
 
-	application := app.NewApplication(config, logger, db)
+	kafkaWriter := &kafka.Writer{
+		Addr:     kafka.TCP(config.Kafka.Brokers...),
+		Topic:    config.Kafka.Topic,
+		Balancer: &kafka.LeastBytes{},
+	}
 
-	// Start worker
+	defer kafkaWriter.Close()
+
+	application := app.NewApplication(config, logger, db, kafkaWriter)
+
 	backgroundWorker := worker.NewWorker(application)
 
 	workerCtx, cancelWorker := context.WithCancel(context.Background())

@@ -14,3 +14,12 @@ func GetAllJobs(app *app.Application) gin.HandlerFunc {
 		})
 	}
 }
+
+func AddJob(app *app.Application) gin.HandlerFunc {
+
+	// jobs := app.Connection
+	return func(c *gin.Context) {
+		c.Status(200)
+
+	}
+}

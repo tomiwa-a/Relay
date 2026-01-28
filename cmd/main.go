@@ -16,6 +16,17 @@ import (
 )
 
 func main() {
+
+	a := 1
+	str := fmt.Sprintf("the value of a is %d", a)
+	fmt.Println(str)
+
+	arr := [4]int{1, 2, 3}
+
+	fmt.Println(arr)
+
+	return
+
 	config := app.LoadConfig()
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
 
@@ -25,7 +36,7 @@ func main() {
 	}
 	defer db.Close()
 
-	app := app.NewApplication(config, logger)
+	app := app.NewApplication(config, logger, db)
 
 	r := gin.Default()
 

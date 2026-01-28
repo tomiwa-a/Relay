@@ -27,6 +27,16 @@ func NewWorker(app *app.Application, reader *kafka.Reader) *Worker {
 	}
 }
 
+func (w *Worker) logJob(ctx context.Context, jobID int32, message string) {
+	w.app.Logger.Printf("[Job %d] %s", jobID, message)
+
+	_, _ = w.app.Repository.CreateJobLog(ctx, repository.CreateJobLogParams{
+		JobID:    jobID,
+		Stdout:   pgtype.Text{String: message, Valid: true},
+		ExitCode: pgtype.Int4{Valid: false},
+	})
+}
+
 func (w *Worker) Start(ctx context.Context) {
 	w.app.Logger.Println("starting background worker...")
 
@@ -97,7 +107,7 @@ func (w *Worker) processJob(ctx context.Context, jobID int32) {
 		return
 	}
 
-	w.app.Logger.Printf("processing job [%d]: %s", job.ID, job.Title)
+	w.logJob(ctx, job.ID, fmt.Sprintf("processing job: %s", job.Title))
 
 	_, err = w.app.Repository.UpdateJobStatus(ctx, repository.UpdateJobStatusParams{
 		ID:      job.ID,
@@ -164,7 +174,7 @@ func (w *Worker) processJob(ctx context.Context, jobID int32) {
 	if err != nil {
 		w.app.Logger.Printf("error updating job [%d] to completed: %v", job.ID, err)
 	} else {
-		w.app.Logger.Printf("job [%d] completed successfully", job.ID)
+		w.logJob(ctx, job.ID, "job completed successfully")
 	}
 }
 
@@ -199,7 +209,7 @@ func (w *Worker) handleFailure(ctx context.Context, job repository.Job, execErr 
 			}
 		}()
 	} else {
-		w.app.Logger.Printf("job [%d] has reached max retries (%d), marking as failed", job.ID, job.MaxRetries.Int32)
+		w.logJob(ctx, job.ID, fmt.Sprintf("job has reached max retries (%d), marking as failed", job.MaxRetries.Int32))
 		_, _ = w.app.Repository.UpdateJobStatus(ctx, repository.UpdateJobStatusParams{
 			ID:      job.ID,
 			Status:  repository.NullJobStatus{JobStatus: repository.JobStatusFailed, Valid: true},

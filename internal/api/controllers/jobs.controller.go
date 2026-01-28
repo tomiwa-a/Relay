@@ -107,3 +107,25 @@ func AddJob(application *app.Application) gin.HandlerFunc {
 		})
 	}
 }
+
+func GetJobLogs(application *app.Application) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		jobID := c.Param("id")
+		jobIDInt, err := strconv.Atoi(jobID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job ID"})
+			return
+		}
+
+		logs, err := application.Repository.GetJobLogs(c.Request.Context(), int32(jobIDInt))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch job logs"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "job logs fetched successfully",
+			"data":    logs,
+		})
+	}
+}

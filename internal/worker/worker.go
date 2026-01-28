@@ -27,12 +27,15 @@ func NewWorker(app *app.Application, reader *kafka.Reader) *Worker {
 	}
 }
 
-func (w *Worker) logJob(ctx context.Context, jobID int32, message string) {
-	w.app.Logger.Printf("[Job %d] %s", jobID, message)
+func (w *Worker) logJob(ctx context.Context, jobID int32, level repository.LogLevel, message string) {
+	w.app.Logger.Printf("[Job %d] [%s] %s", jobID, level, message)
 
 	_, _ = w.app.Repository.CreateJobLog(ctx, repository.CreateJobLogParams{
 		JobID:    jobID,
-		Stdout:   pgtype.Text{String: message, Valid: true},
+		Level:    level,
+		Message:  message,
+		Stdout:   pgtype.Text{Valid: false},
+		Stderr:   pgtype.Text{Valid: false},
 		ExitCode: pgtype.Int4{Valid: false},
 	})
 }
@@ -107,7 +110,7 @@ func (w *Worker) processJob(ctx context.Context, jobID int32) {
 		return
 	}
 
-	w.logJob(ctx, job.ID, fmt.Sprintf("processing job: %s", job.Title))
+	w.logJob(ctx, job.ID, repository.LogLevelINFO, fmt.Sprintf("processing job: %s", job.Title))
 
 	_, err = w.app.Repository.UpdateJobStatus(ctx, repository.UpdateJobStatusParams{
 		ID:      job.ID,
@@ -174,7 +177,7 @@ func (w *Worker) processJob(ctx context.Context, jobID int32) {
 	if err != nil {
 		w.app.Logger.Printf("error updating job [%d] to completed: %v", job.ID, err)
 	} else {
-		w.logJob(ctx, job.ID, "job completed successfully")
+		w.logJob(ctx, job.ID, repository.LogLevelINFO, "job completed successfully")
 	}
 }
 
@@ -209,10 +212,10 @@ func (w *Worker) handleFailure(ctx context.Context, job repository.Job, execErr 
 			}
 		}()
 	} else {
-		w.logJob(ctx, job.ID, fmt.Sprintf("job has reached max retries (%d), marking as failed", job.MaxRetries.Int32))
+		w.logJob(ctx, job.ID, repository.LogLevelERROR, fmt.Sprintf("job has reached max retries (%d), marking as dead", job.MaxRetries.Int32))
 		_, _ = w.app.Repository.UpdateJobStatus(ctx, repository.UpdateJobStatusParams{
 			ID:      job.ID,
-			Status:  repository.NullJobStatus{JobStatus: repository.JobStatusFailed, Valid: true},
+			Status:  repository.NullJobStatus{JobStatus: repository.JobStatusDead, Valid: true}, // DLQ: Marked as dead
 			Retries: job.Retries,
 		})
 	}

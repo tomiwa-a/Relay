@@ -35,14 +35,25 @@ RETURNING *;
 -- name: CreateJobLog :one
 INSERT INTO job_logs (
     job_id,
+    level,
+    message,
     stdout,
     stderr,
     exit_code
 ) VALUES (
-    $1, $2, $3, $4
+    $1, $2, $3, $4, $5, $6
 ) RETURNING *;
 
 -- name: GetJobLogs :many
 SELECT * FROM job_logs
 WHERE job_id = $1
 ORDER BY created_at ASC;
+
+-- name: ReplayJob :one
+UPDATE jobs
+SET 
+    status = 'pending',
+    retries = 0,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING *;

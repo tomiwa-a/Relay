@@ -62,16 +62,20 @@ func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (Job, erro
 const createJobLog = `-- name: CreateJobLog :one
 INSERT INTO job_logs (
     job_id,
+    level,
+    message,
     stdout,
     stderr,
     exit_code
 ) VALUES (
-    $1, $2, $3, $4
-) RETURNING id, job_id, stdout, stderr, exit_code, created_at
+    $1, $2, $3, $4, $5, $6
+) RETURNING id, job_id, stdout, stderr, exit_code, created_at, level, message
 `
 
 type CreateJobLogParams struct {
 	JobID    int32
+	Level    LogLevel
+	Message  string
 	Stdout   pgtype.Text
 	Stderr   pgtype.Text
 	ExitCode pgtype.Int4
@@ -80,6 +84,8 @@ type CreateJobLogParams struct {
 func (q *Queries) CreateJobLog(ctx context.Context, arg CreateJobLogParams) (JobLog, error) {
 	row := q.db.QueryRow(ctx, createJobLog,
 		arg.JobID,
+		arg.Level,
+		arg.Message,
 		arg.Stdout,
 		arg.Stderr,
 		arg.ExitCode,
@@ -92,6 +98,8 @@ func (q *Queries) CreateJobLog(ctx context.Context, arg CreateJobLogParams) (Job
 		&i.Stderr,
 		&i.ExitCode,
 		&i.CreatedAt,
+		&i.Level,
+		&i.Message,
 	)
 	return i, err
 }
@@ -121,7 +129,7 @@ func (q *Queries) GetJob(ctx context.Context, id int32) (Job, error) {
 }
 
 const getJobLogs = `-- name: GetJobLogs :many
-SELECT id, job_id, stdout, stderr, exit_code, created_at FROM job_logs
+SELECT id, job_id, stdout, stderr, exit_code, created_at, level, message FROM job_logs
 WHERE job_id = $1
 ORDER BY created_at ASC
 `
@@ -142,6 +150,8 @@ func (q *Queries) GetJobLogs(ctx context.Context, jobID int32) ([]JobLog, error)
 			&i.Stderr,
 			&i.ExitCode,
 			&i.CreatedAt,
+			&i.Level,
+			&i.Message,
 		); err != nil {
 			return nil, err
 		}
@@ -226,6 +236,35 @@ func (q *Queries) ListJobs(ctx context.Context) ([]Job, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const replayJob = `-- name: ReplayJob :one
+UPDATE jobs
+SET 
+    status = 'pending',
+    retries = 0,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING id, parent_job_id, title, description, payload, max_retries, retries, status, created_at, updated_at, timeout_seconds
+`
+
+func (q *Queries) ReplayJob(ctx context.Context, id int32) (Job, error) {
+	row := q.db.QueryRow(ctx, replayJob, id)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.ParentJobID,
+		&i.Title,
+		&i.Description,
+		&i.Payload,
+		&i.MaxRetries,
+		&i.Retries,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TimeoutSeconds,
+	)
+	return i, err
 }
 
 const updateJobStatus = `-- name: UpdateJobStatus :one

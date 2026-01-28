@@ -1,0 +1,5 @@
+CREATE TYPE log_level AS ENUM ('INFO', 'WARN', 'ERROR', 'DEBUG');
+
+ALTER TABLE job_logs
+ADD COLUMN level log_level NOT NULL DEFAULT 'INFO',
+ADD COLUMN message TEXT NOT NULL DEFAULT '';

@@ -56,6 +56,50 @@ func (ns NullJobStatus) Value() (driver.Value, error) {
 	return string(ns.JobStatus), nil
 }
 
+type LogLevel string
+
+const (
+	LogLevelINFO  LogLevel = "INFO"
+	LogLevelWARN  LogLevel = "WARN"
+	LogLevelERROR LogLevel = "ERROR"
+	LogLevelDEBUG LogLevel = "DEBUG"
+)
+
+func (e *LogLevel) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LogLevel(s)
+	case string:
+		*e = LogLevel(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LogLevel: %T", src)
+	}
+	return nil
+}
+
+type NullLogLevel struct {
+	LogLevel LogLevel
+	Valid    bool // Valid is true if LogLevel is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullLogLevel) Scan(value interface{}) error {
+	if value == nil {
+		ns.LogLevel, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.LogLevel.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullLogLevel) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.LogLevel), nil
+}
+
 type Job struct {
 	ID             int32
 	ParentJobID    pgtype.Int4
@@ -77,4 +121,6 @@ type JobLog struct {
 	Stderr    pgtype.Text
 	ExitCode  pgtype.Int4
 	CreatedAt pgtype.Timestamp
+	Level     LogLevel
+	Message   string
 }

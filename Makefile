@@ -12,7 +12,7 @@ confirm:
 ## run/api: run the cmd/api application
 .PHONY: run/api
 run/api:
-	go run ./cmd/api -db-dsn=${RELAY_DB_DSN}
+	go run ./cmd/ -db-dsn=${RELAY_DB_DSN}
 
 ## db/psql: connect to the database using psql
 .PHONY: db/psql

@@ -3,6 +3,7 @@ package app
 import (
 	"flag"
 	"os"
+	"time"
 )
 
 type Config struct {
@@ -15,7 +16,9 @@ type Config struct {
 		MaxIdleTime  string
 	}
 	Redis struct {
-		Addr string
+		Addr        string
+		LockTTL     time.Duration
+		UseWatchdog bool
 	}
 	Kafka struct {
 		Brokers []string
@@ -42,6 +45,8 @@ func LoadConfig() Config {
 	flag.StringVar(&config.Kafka.GroupID, "kafka-group-id", getEnv("RELAY_KAFKA_GROUP_ID", "relay-worker-group"), "Kafka consumer group ID")
 
 	flag.StringVar(&config.Redis.Addr, "redis-addr", getEnv("RELAY_REDIS_ADDR", "localhost:6379"), "Redis address")
+	flag.DurationVar(&config.Redis.LockTTL, "redis-lock-ttl", 10*time.Minute, "Redis lock TTL")
+	flag.BoolVar(&config.Redis.UseWatchdog, "redis-use-watchdog", true, "Enable Redis lock watchdog")
 
 	flag.Parse()
 

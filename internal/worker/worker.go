@@ -48,7 +48,7 @@ func (w *Worker) Start(ctx context.Context) {
 
 func (w *Worker) processJob(ctx context.Context, jobID int32) {
 	lockKey := fmt.Sprintf("job:lock:%d", jobID)
-	val, err := w.app.Redis.SetNX(ctx, lockKey, "locked", 10*time.Minute).Result()
+	val, err := w.app.Redis.SetNX(ctx, lockKey, "locked", w.app.Config.Redis.LockTTL).Result()
 	if err != nil {
 		w.app.Logger.Printf("error acquiring lock for job [%d]: %v", jobID, err)
 		return
@@ -57,6 +57,29 @@ func (w *Worker) processJob(ctx context.Context, jobID int32) {
 	if !val {
 		w.app.Logger.Printf("job [%d] is already being processed by another worker, skipping", jobID)
 		return
+	}
+
+	// Watchdog logic
+	if w.app.Config.Redis.UseWatchdog {
+		watchdogCtx, stopWatchdog := context.WithCancel(ctx)
+		defer stopWatchdog()
+
+		go func() {
+			ticker := time.NewTicker(w.app.Config.Redis.LockTTL / 2)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-watchdogCtx.Done():
+					w.app.Redis.Del(ctx, lockKey)
+					return
+				case <-ticker.C:
+					w.app.Redis.Expire(ctx, lockKey, w.app.Config.Redis.LockTTL)
+				}
+			}
+		}()
+	} else {
+		defer w.app.Redis.Del(ctx, lockKey)
 	}
 
 	job, err := w.app.Repository.GetJob(ctx, jobID)

@@ -38,7 +38,14 @@ func main() {
 
 	application := app.NewApplication(config, logger, db, kafkaWriter)
 
-	backgroundWorker := worker.NewWorker(application)
+	kafkaReader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: config.Kafka.Brokers,
+		Topic:   config.Kafka.Topic,
+		GroupID: config.Kafka.GroupID,
+	})
+	defer kafkaReader.Close()
+
+	backgroundWorker := worker.NewWorker(application, kafkaReader)
 
 	workerCtx, cancelWorker := context.WithCancel(context.Background())
 	defer cancelWorker()

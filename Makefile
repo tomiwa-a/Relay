@@ -58,6 +58,15 @@ docker/down:
 docker/psql:
 	docker exec -it relay-postgres psql ${RELAY_DB_DSN}
 
+## docker/redis: connect to the redis container using redis-cli
+.PHONY: docker/redis
+docker/redis:
+	docker exec -it relay-redis redis-cli
+
+## docker/kafka/consume topic=$1: consume messages from a Kafka topic
+.PHONY: docker/kafka/consume
+docker/kafka/consume:
+	docker exec -it relay-kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic ${topic} --from-beginning
 
 ## sqlc: generate type-safe code from SQL
 .PHONY: sqlc

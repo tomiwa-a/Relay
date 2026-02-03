@@ -14,7 +14,8 @@ http:
         "description": "Deletes old log files",
         "payload": {
           "command": "rm -f /tmp/*.log",
-          "timeout": "5s"
+          "timeout": "5s",
+          "fail": true
         },
         "max_retries": 5
       }

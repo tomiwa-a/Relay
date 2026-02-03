@@ -164,8 +164,6 @@ func ReplayJob(application *app.Application) gin.HandlerFunc {
 		}
 		if err := application.KafkaWriter.WriteMessages(c.Request.Context(), msg); err != nil {
 			application.Logger.Printf("failed to push replayed job [%d] to kafka: %v", replayedJob.ID, err)
-			// Note: We might want to rollback status here, but for now we leave it as pending (stale).
-			// This is where the Sweeper would help!
 		}
 
 		c.JSON(http.StatusOK, gin.H{

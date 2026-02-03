@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -12,18 +11,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/segmentio/kafka-go"
 	"github.com/tomiwa-a/Relay/internal/api/app"
+	"github.com/tomiwa-a/Relay/internal/executor"
 	"github.com/tomiwa-a/Relay/internal/repository"
 )
 
 type Worker struct {
 	app         *app.Application
 	kafkaReader *kafka.Reader
+	executor    executor.Executor
 }
 
 func NewWorker(app *app.Application, reader *kafka.Reader) *Worker {
 	return &Worker{
 		app:         app,
 		kafkaReader: reader,
+		executor:    executor.NewExecutor(),
 	}
 }
 
@@ -135,23 +137,45 @@ func (w *Worker) processJob(ctx context.Context, jobID int32) {
 	done := make(chan error, 1)
 
 	go func() {
-		var payload map[string]interface{}
-		_ = json.Unmarshal(job.Payload, &payload)
-
-		// Simulate failure if "fail": true is in payload
-		if fail, ok := payload["fail"].(bool); ok && fail {
-			done <- errors.New("simulated job failure")
+		result, err := w.executor.Execute(execCtx, job.Payload)
+		if err != nil {
+			done <- err
 			return
 		}
 
-		// Simulate long running job if "sleep": N is in payload
-		sleepTime := 2 * time.Second
-		if s, ok := payload["sleep"].(float64); ok {
-			sleepTime = time.Duration(s) * time.Second
+		// Log the execution result
+		w.logJob(execCtx, job.ID, repository.LogLevelINFO, fmt.Sprintf("job execution completed with exit code: %d", result.ExitCode))
+
+		// Store stdout and stderr in logs
+		if result.Stdout != "" {
+			_, _ = w.app.Repository.CreateJobLog(execCtx, repository.CreateJobLogParams{
+				JobID:    job.ID,
+				Level:    repository.LogLevelINFO,
+				Message:  "stdout",
+				Stdout:   pgtype.Text{String: result.Stdout, Valid: true},
+				Stderr:   pgtype.Text{Valid: false},
+				ExitCode: pgtype.Int4{Int32: result.ExitCode, Valid: true},
+			})
 		}
 
-		time.Sleep(sleepTime)
-		done <- nil
+		if result.Stderr != "" {
+			_, _ = w.app.Repository.CreateJobLog(execCtx, repository.CreateJobLogParams{
+				JobID:    job.ID,
+				Level:    repository.LogLevelWARN,
+				Message:  "stderr",
+				Stdout:   pgtype.Text{Valid: false},
+				Stderr:   pgtype.Text{String: result.Stderr, Valid: true},
+				ExitCode: pgtype.Int4{Int32: result.ExitCode, Valid: true},
+			})
+		}
+
+		// If exit code is non-zero, treat as failure
+		if result.ExitCode != 0 {
+			done <- errors.New(fmt.Sprintf("command exited with code %d", result.ExitCode))
+			return
+		}
+
+		done <- result.Error
 	}()
 
 	select {
